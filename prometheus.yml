@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "url-shortnr"
+    static_configs:
+      - targets: ["url-shortnr:8080"]

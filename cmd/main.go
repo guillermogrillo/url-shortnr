@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"urlshortn/cmd/instrumentation"
 	"urlshortn/pkg/api"
 	"urlshortn/pkg/hash"
 	"urlshortn/pkg/storage"
@@ -32,13 +34,16 @@ func runApp(name string, args ...string) int {
 		Level: slog.LevelDebug,
 	}))
 
+	metrics := instrumentation.NewMetrics()
+	metricsHooks := metrics.GetHooks()
+
 	tokenGen := token.NewSnowflakeTokenGenerator(defaultEpoch, logger)
 
 	urlTokenHasher := hash.NewUrlTokenHash(logger)
 
 	urlStore := storage.NewRedisStore(redisAddr, redisPassword, logger)
 
-	urlHandler := api.NewUrlHandler(tokenGen, urlTokenHasher, urlStore, logger)
+	urlHandler := api.NewUrlHandler(tokenGen, urlTokenHasher, urlStore, metricsHooks, logger)
 
 	http.HandleFunc("/shortn", func(w http.ResponseWriter, r *http.Request) {
 		urlHandler.ShortenUrl(w, r)
@@ -53,7 +58,7 @@ func runApp(name string, args ...string) int {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
-
+	http.Handle("/metrics", promhttp.Handler())
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
 		log.Fatal(err)
 		return 1

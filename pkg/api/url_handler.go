@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/redis/go-redis/v9"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"urlshortn/pkg/hash"
+	"urlshortn/pkg/metrics"
 	"urlshortn/pkg/storage"
 	"urlshortn/pkg/token"
 )
@@ -19,18 +21,20 @@ type HttpUrlHandler interface {
 }
 
 type UrlHandler struct {
-	TokenGen    token.TokenGenerator
-	TokenHasher hash.TokenHasher
-	UrlStore    storage.Store
-	logger      *slog.Logger
+	TokenGen     token.TokenGenerator
+	TokenHasher  hash.TokenHasher
+	UrlStore     storage.Store
+	MetricsHooks *metrics.MetricsHooks
+	logger       *slog.Logger
 }
 
-func NewUrlHandler(tokenGen token.TokenGenerator, urlTokenHasher hash.TokenHasher, urlStore storage.Store, logger *slog.Logger) UrlHandler {
+func NewUrlHandler(tokenGen token.TokenGenerator, urlTokenHasher hash.TokenHasher, urlStore storage.Store, metricsHooks *metrics.MetricsHooks, logger *slog.Logger) UrlHandler {
 	return UrlHandler{
-		TokenGen:    tokenGen,
-		TokenHasher: urlTokenHasher,
-		UrlStore:    urlStore,
-		logger:      logger,
+		TokenGen:     tokenGen,
+		TokenHasher:  urlTokenHasher,
+		UrlStore:     urlStore,
+		MetricsHooks: metricsHooks,
+		logger:       logger,
 	}
 }
 
@@ -43,6 +47,7 @@ type ShortenUrlResponse struct {
 }
 
 func (h *UrlHandler) ShortenUrl(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	var req ShortenUrlRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.logger.Error("Error decoding the request to a known struct", "error", err)
@@ -54,6 +59,8 @@ func (h *UrlHandler) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 	}
 	h.logger.Debug("Shortening url", "url", req.URL)
 
+	ctx = h.MetricsHooks.OnShortenUrlCalled(ctx, req.URL)
+
 	token, err := h.TokenGen.GenerateToken()
 	if err != nil {
 		h.logger.Error("Error generating a token based on the url", "error", err)
@@ -61,6 +68,7 @@ func (h *UrlHandler) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct {
 			Error string
 		}{"internal error generating a token"})
+		h.MetricsHooks.OnShortenUrlFinished(ctx, req.URL, err)
 		return
 	}
 	h.logger.Debug("Generated token", "token", token)
@@ -72,6 +80,7 @@ func (h *UrlHandler) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct {
 			Error string
 		}{"internal error generating a hash for the token"})
+		h.MetricsHooks.OnShortenUrlFinished(ctx, req.URL, err)
 		return
 	}
 	h.logger.Debug("Generated shorten url", "url", shortenUrl)
@@ -83,6 +92,7 @@ func (h *UrlHandler) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct {
 			Error string
 		}{"internal error persisting a token"})
+		h.MetricsHooks.OnShortenUrlFinished(ctx, req.URL, err)
 		return
 	}
 
@@ -97,15 +107,18 @@ func (h *UrlHandler) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(struct {
 			Error string
 		}{"internal error generating the response"})
+		h.MetricsHooks.OnShortenUrlFinished(ctx, req.URL, err)
 		return
 	}
 
+	h.MetricsHooks.OnShortenUrlFinished(ctx, req.URL, err)
 	w.WriteHeader(http.StatusOK)
 	w.Write(response)
 
 }
 
 func (h *UrlHandler) GetLongUrl(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	shortenUrl := strings.TrimPrefix(r.URL.Path, "/shortn/")
 	if shortenUrl == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -115,6 +128,7 @@ func (h *UrlHandler) GetLongUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.logger.Debug("GetLongURl", "url", shortenUrl)
+	ctx = h.MetricsHooks.OnGetLongUrlCalled(ctx, shortenUrl)
 	longUrl, err := h.UrlStore.Fetch(shortenUrl)
 	if err != nil {
 		switch {
@@ -124,6 +138,7 @@ func (h *UrlHandler) GetLongUrl(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(struct {
 				Error string
 			}{"the provided short url is not available"})
+			h.MetricsHooks.OnGetLongUrlFinished(ctx, shortenUrl, err)
 			return
 		default:
 			h.logger.Error("Error fetching long url from storage", "error", err)
@@ -131,14 +146,16 @@ func (h *UrlHandler) GetLongUrl(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(struct {
 				Error string
 			}{"internal error getting the long url"})
+			h.MetricsHooks.OnGetLongUrlFinished(ctx, shortenUrl, err)
 			return
 		}
 	}
-
+	h.MetricsHooks.OnGetLongUrlFinished(ctx, shortenUrl, err)
 	http.Redirect(w, r, longUrl, http.StatusFound)
 }
 
 func (h *UrlHandler) DeleteShortenUrl(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	shortenUrl := strings.TrimPrefix(r.URL.Path, "/shortn/")
 	if shortenUrl == "" {
 		h.logger.Error("No shortenUrl provided")
@@ -149,6 +166,7 @@ func (h *UrlHandler) DeleteShortenUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.logger.Debug("DeleteShortenUrl", "url", shortenUrl)
+	ctx = h.MetricsHooks.OnDeleteShortenUrlCalled(ctx, shortenUrl)
 	err := h.UrlStore.Remove(shortenUrl)
 	if err != nil {
 		switch {
@@ -158,6 +176,7 @@ func (h *UrlHandler) DeleteShortenUrl(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(struct {
 				Error string
 			}{"the provided short url is not available"})
+			h.MetricsHooks.OnDeleteShortenUrlFinished(ctx, shortenUrl, err)
 			return
 		default:
 			h.logger.Error("Error deleting short url from storage", "error", err)
@@ -165,7 +184,9 @@ func (h *UrlHandler) DeleteShortenUrl(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(struct {
 				Error string
 			}{"internal error deleting the short url"})
+			h.MetricsHooks.OnDeleteShortenUrlFinished(ctx, shortenUrl, err)
 			return
 		}
 	}
+	h.MetricsHooks.OnDeleteShortenUrlFinished(ctx, shortenUrl, err)
 }

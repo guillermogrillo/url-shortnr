@@ -1,0 +1,67 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "request-metrics",
+    "title": "HTTP Request Metrics",
+    "tags": ["prometheus", "golang"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "panels": [
+      {
+        "title": "Total Requests",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "Total Requests",
+            "datasource": "Prometheus"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(http_errors_total[5m])",
+            "legendFormat": "Errors",
+            "datasource": "Prometheus"
+          }
+        ]
+      },
+      {
+        "title": "Request Duration (95th Percentile)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th Percentile",
+            "datasource": "Prometheus"
+          }
+        ]
+      },
+      {
+        "title": "Request Duration (50th, 90th, 99th Percentile)",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th Percentile",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "histogram_quantile(0.90, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "90th Percentile",
+            "datasource": "Prometheus"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "99th Percentile",
+            "datasource": "Prometheus"
+          }
+        ]
+      }
+    ]
+  }
+}

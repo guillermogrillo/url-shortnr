@@ -1,0 +1,101 @@
+{
+	"info": {
+		"_postman_id": "2f9af473-91b6-4802-acc9-7cabf584e362",
+		"name": "urlshortn",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "POST a url to shortn",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"url\": \"http://google.com.ar\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8080/shortn",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"shortn"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GET a long url by its shortn one",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": ""
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "http://localhost:8080/shortn/1EfGZnRSpK2",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"shortn",
+						"1EfGZnRSpK2"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "DELETE a shortn url",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": ""
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "http://localhost:8080/shortn/1EfGZnRSpK2",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"shortn",
+						"1EfGZnRSpK2"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
