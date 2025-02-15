@@ -37,6 +37,5 @@ func (h UrlTokenHash) Hash(n int64) (string, error) {
 			break
 		}
 	}
-
 	return result, nil
 }
