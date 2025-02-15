@@ -1,0 +1,15 @@
+# Binaries & compiled files
+*.exe
+*.out
+*.o
+*.so
+*.dll
+
+# Go modules & dependencies
+/go
+/bin
+/pkg
+vendor/
+
+# Cache & logs
+*.log
