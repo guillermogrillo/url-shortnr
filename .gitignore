@@ -8,7 +8,6 @@
 # Go modules & dependencies
 /go
 /bin
-/pkg
 vendor/
 
 # Cache & logs
