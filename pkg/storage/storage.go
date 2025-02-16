@@ -18,7 +18,11 @@ type Store interface {
 }
 
 type RedisStore struct {
-	client *redis.Client
+	client interface {
+		Get(ctx context.Context, key string) *redis.StringCmd
+		Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
+		Del(ctx context.Context, keys ...string) *redis.IntCmd
+	}
 	logger *slog.Logger
 }
 
@@ -41,4 +45,20 @@ func (store *RedisStore) Store(key string, data string) error {
 
 func (store *RedisStore) Remove(key string) error {
 	return store.client.Del(context.Background(), key).Err()
+}
+
+type FakeUrlStore struct {
+	FetchFn  func(string) (string, error)
+	StoreFn  func(string, string) error
+	RemoveFn func(string) error
+}
+
+func (store *FakeUrlStore) Fetch(key string) (string, error) {
+	return store.FetchFn(key)
+}
+func (store *FakeUrlStore) Store(key string, data string) error {
+	return store.StoreFn(key, data)
+}
+func (store *FakeUrlStore) Remove(key string) error {
+	return store.RemoveFn(key)
 }

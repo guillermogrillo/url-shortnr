@@ -25,9 +25,11 @@ type UrlHandler struct {
 	TokenGen              token.TokenGenerator
 	TokenHasher           hash.TokenHasher
 	UrlStore              storage.Store
-	ShortUrlEventProducer event.Producer
-	MetricsHooks          *metrics.MetricsHooks
-	logger                *slog.Logger
+	ShortUrlEventProducer interface {
+		Produce(content string) error
+	}
+	MetricsHooks *metrics.MetricsHooks
+	logger       *slog.Logger
 }
 
 func NewUrlHandler(tokenGen token.TokenGenerator, urlTokenHasher hash.TokenHasher, urlStore storage.Store, shortUrlEventProducer event.Producer, metricsHooks *metrics.MetricsHooks, logger *slog.Logger) UrlHandler {
@@ -197,4 +199,5 @@ func (h *UrlHandler) DeleteShortenUrl(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.MetricsHooks.OnDeleteShortenUrlFinished(ctx, shortenUrl, err)
+	w.WriteHeader(http.StatusOK)
 }

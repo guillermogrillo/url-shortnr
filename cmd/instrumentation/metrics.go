@@ -36,7 +36,7 @@ func NewMetrics() *Metrics {
 			Name: "http_requests_errors",
 			Help: "Total number of errors",
 		},
-		[]string{"url"},
+		[]string{"method", "endpoint", "url"},
 	)
 	requestsDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{

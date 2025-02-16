@@ -43,3 +43,11 @@ func (s SnowflakeTokenGenerator) GenerateToken() (snowflake.ID, error) {
 
 	return id, nil
 }
+
+type FakeTokenGenerator struct {
+	GenerateTokenFn func() (snowflake.ID, error)
+}
+
+func (f *FakeTokenGenerator) GenerateToken() (snowflake.ID, error) {
+	return f.GenerateTokenFn()
+}

@@ -40,3 +40,11 @@ func (h UrlTokenHash) Hash(n int64) (string, error) {
 
 	return result, nil
 }
+
+type FakeTokenHasher struct {
+	HashFn func(n int64) (string, error)
+}
+
+func (f *FakeTokenHasher) Hash(n int64) (string, error) {
+	return f.HashFn(n)
+}

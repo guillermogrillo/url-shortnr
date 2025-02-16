@@ -11,9 +11,11 @@ type Producer interface {
 }
 
 type ShortUrlEventProducer struct {
-	producer kafka.Producer
-	topic    string
-	logger   *slog.Logger
+	producer interface {
+		Produce(msg *kafka.Message, deliveryChan chan kafka.Event) error
+	}
+	topic  string
+	logger *slog.Logger
 }
 
 func NewShortUrlProducer(configs KafkaConfigs, logger *slog.Logger) (*ShortUrlEventProducer, error) {
@@ -26,7 +28,7 @@ func NewShortUrlProducer(configs KafkaConfigs, logger *slog.Logger) (*ShortUrlEv
 		return nil, err
 	}
 	return &ShortUrlEventProducer{
-		producer: *producer,
+		producer: producer,
 		topic:    configs.Topic,
 		logger:   logger,
 	}, nil

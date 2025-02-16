@@ -5,11 +5,15 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"log"
 	"log/slog"
+	"time"
 	"urlshortn/pkg/storage"
 )
 
 type ShortUrlEventConsumer struct {
-	Consumer kafka.Consumer
+	Consumer interface {
+		SubscribeTopics(topics []string, rebalanceCb kafka.RebalanceCb) (err error)
+		ReadMessage(timeout time.Duration) (*kafka.Message, error)
+	}
 	UrlStore storage.Store
 	logger   *slog.Logger
 }
@@ -30,7 +34,7 @@ func NewShortUrlConsumer(configs KafkaConfigs, urlStore storage.Store, logger *s
 		return nil, err
 	}
 	return &ShortUrlEventConsumer{
-		Consumer: *consumer,
+		Consumer: consumer,
 		UrlStore: urlStore,
 		logger:   logger,
 	}, nil
@@ -41,17 +45,17 @@ func (c *ShortUrlEventConsumer) Start() {
 	for {
 		msg, err := c.Consumer.ReadMessage(-1)
 		if err != nil {
-			c.logger.Error("Error reading from kafka", err)
+			c.logger.Error("Error reading from kafka", "error", err)
 		} else {
 			var event ShortUrlEvent
 			err = json.Unmarshal(msg.Value, &event)
 			if err != nil {
-				c.logger.Error("Error unmarshalling event", err)
+				c.logger.Error("Error unmarshalling event", "error", err)
 				continue
 			}
 			err = c.UrlStore.Store(event.ShortUrl, event.LongUrl)
 			if err != nil {
-				c.logger.Error("Error storing event", err)
+				c.logger.Error("Error storing event", "error", err)
 				continue
 			}
 		}
