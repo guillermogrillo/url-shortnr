@@ -9,6 +9,7 @@ import (
 	"os"
 	"urlshortn/cmd/instrumentation"
 	"urlshortn/pkg/api"
+	"urlshortn/pkg/event"
 	"urlshortn/pkg/hash"
 	"urlshortn/pkg/storage"
 	"urlshortn/pkg/token"
@@ -30,6 +31,11 @@ func runApp(name string, args ...string) int {
 	redisAddr := getEnvVarOrDefault("REDIS_ADDR", "localhost:6379")
 	redisPassword := getEnvVarOrDefault("REDIS_PASSWORD", "")
 
+	kafkaBootstrapServers := getEnvVarOrDefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+	kafkaTopic := getEnvVarOrDefault("KAFKA_TOPIC", "shortn")
+	kafkaGroupId := getEnvVarOrDefault("KAFKA_GROUP_ID", "shortn")
+	kafkaOffset := getEnvVarOrDefault("KAFKA_OFFSET", "earliest")
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
@@ -43,7 +49,30 @@ func runApp(name string, args ...string) int {
 
 	urlStore := storage.NewRedisStore(redisAddr, redisPassword, logger)
 
-	urlHandler := api.NewUrlHandler(tokenGen, urlTokenHasher, urlStore, metricsHooks, logger)
+	kafkaConfigs := event.KafkaConfigs{
+		BootstrapServers: kafkaBootstrapServers,
+		Topic:            kafkaTopic,
+		GroupId:          kafkaGroupId,
+		Offset:           kafkaOffset,
+	}
+	shortUrlEventProducer, err := event.NewShortUrlProducer(kafkaConfigs, logger)
+	if err != nil {
+		log.Fatal("Failed to create short url event producer: ", err)
+		return 1
+	}
+
+	shortUrlEventConsumer, err := event.NewShortUrlConsumer(kafkaConfigs, urlStore, logger)
+	if err != nil {
+		log.Fatal("Failed to create short url event consumer: ", err)
+		return 1
+	}
+
+	// start the consumer
+	go func(consumer *event.ShortUrlEventConsumer) {
+		consumer.Start()
+	}(shortUrlEventConsumer)
+
+	urlHandler := api.NewUrlHandler(tokenGen, urlTokenHasher, urlStore, shortUrlEventProducer, metricsHooks, logger)
 
 	http.HandleFunc("/shortn", func(w http.ResponseWriter, r *http.Request) {
 		urlHandler.ShortenUrl(w, r)

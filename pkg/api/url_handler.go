@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"urlshortn/pkg/event"
 	"urlshortn/pkg/hash"
 	"urlshortn/pkg/metrics"
 	"urlshortn/pkg/storage"
@@ -21,20 +22,22 @@ type HttpUrlHandler interface {
 }
 
 type UrlHandler struct {
-	TokenGen     token.TokenGenerator
-	TokenHasher  hash.TokenHasher
-	UrlStore     storage.Store
-	MetricsHooks *metrics.MetricsHooks
-	logger       *slog.Logger
+	TokenGen              token.TokenGenerator
+	TokenHasher           hash.TokenHasher
+	UrlStore              storage.Store
+	ShortUrlEventProducer event.Producer
+	MetricsHooks          *metrics.MetricsHooks
+	logger                *slog.Logger
 }
 
-func NewUrlHandler(tokenGen token.TokenGenerator, urlTokenHasher hash.TokenHasher, urlStore storage.Store, metricsHooks *metrics.MetricsHooks, logger *slog.Logger) UrlHandler {
+func NewUrlHandler(tokenGen token.TokenGenerator, urlTokenHasher hash.TokenHasher, urlStore storage.Store, shortUrlEventProducer event.Producer, metricsHooks *metrics.MetricsHooks, logger *slog.Logger) UrlHandler {
 	return UrlHandler{
-		TokenGen:     tokenGen,
-		TokenHasher:  urlTokenHasher,
-		UrlStore:     urlStore,
-		MetricsHooks: metricsHooks,
-		logger:       logger,
+		TokenGen:              tokenGen,
+		TokenHasher:           urlTokenHasher,
+		UrlStore:              urlStore,
+		ShortUrlEventProducer: shortUrlEventProducer,
+		MetricsHooks:          metricsHooks,
+		logger:                logger,
 	}
 }
 
@@ -85,16 +88,21 @@ func (h *UrlHandler) ShortenUrl(w http.ResponseWriter, r *http.Request) {
 	}
 	h.logger.Debug("Generated shorten url", "url", shortenUrl)
 
-	err = h.UrlStore.Store(shortenUrl, req.URL)
+	event := event.ShortUrlEvent{
+		ShortUrl: shortenUrl,
+		LongUrl:  req.URL,
+	}
+	content, err := json.Marshal(event)
 	if err != nil {
-		h.logger.Error("Error persisting in storage", "error", err)
+		h.logger.Error("Error encoding the event", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(struct {
 			Error string
-		}{"internal error persisting a token"})
+		}{"internal error encoding the event"})
 		h.MetricsHooks.OnShortenUrlFinished(ctx, req.URL, err)
 		return
 	}
+	h.ShortUrlEventProducer.Produce(string(content))
 
 	result := ShortenUrlResponse{
 		ShortUrl: shortenUrl,
